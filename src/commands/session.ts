@@ -60,6 +60,7 @@ export const sessionCommand = define({
 					cacheReadTokens: data.cacheReadTokens,
 					totalTokens: getTotalTokens(data),
 					totalCost: data.totalCost,
+					requestCount: data.requestCount,
 					lastActivity: data.lastActivity,
 					modelsUsed: data.modelsUsed,
 					modelBreakdowns: data.modelBreakdowns,
@@ -77,6 +78,7 @@ export const sessionCommand = define({
 				head: [
 					'Session',
 					'Models',
+					'Requests',
 					'Input',
 					'Output',
 					'Cache Create',
@@ -97,6 +99,7 @@ export const sessionCommand = define({
 					'right',
 					'right',
 					'right',
+					'right',
 					'left',
 				],
 			});
@@ -111,6 +114,7 @@ export const sessionCommand = define({
 				table.push([
 					sessionDisplay,
 					formatModelsDisplay(data.modelsUsed),
+					formatNumber(data.requestCount),
 					formatNumber(data.inputTokens),
 					formatNumber(data.outputTokens),
 					formatNumber(data.cacheCreationTokens),
@@ -131,6 +135,7 @@ export const sessionCommand = define({
 			table.push([
 				'─'.repeat(maxSessionLength), // For Session
 				'─'.repeat(12), // For Models
+				'─'.repeat(12), // For Requests
 				'─'.repeat(12), // For Input Tokens
 				'─'.repeat(12), // For Output Tokens
 				'─'.repeat(12), // For Cache Create
@@ -144,6 +149,7 @@ export const sessionCommand = define({
 			table.push([
 				pc.yellow('Total'),
 				'', // Empty for Models column in totals
+				pc.yellow(formatNumber(totals.requestCount)),
 				pc.yellow(formatNumber(totals.inputTokens)),
 				pc.yellow(formatNumber(totals.outputTokens)),
 				pc.yellow(formatNumber(totals.cacheCreationTokens)),
