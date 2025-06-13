@@ -11,6 +11,13 @@ import {
 } from './pricing-fetcher.ts';
 import { groupBy } from './utils.internal.ts';
 
+/**
+ * Helper function for handling unexpected values in exhaustive switches
+ */
+function throwUnexpectedValue(value: never, context: string): never {
+	throw new Error(`Unexpected ${context} value: ${String(value)}`);
+}
+
 export function getDefaultClaudePath(): string {
 	return path.join(homedir(), '.claude');
 }
@@ -124,7 +131,7 @@ function sortByDate<T>(
 		case 'asc':
 			return sorted.asc(item => new Date(getDate(item)).getTime());
 		default:
-			throw new Error(`Unknown order: ${String(order)}`);
+			throwUnexpectedValue(order, 'sort order');
 	}
 }
 
@@ -247,7 +254,7 @@ export async function calculateCostForEntry(
 		return 0;
 	}
 
-	throw new Error(`Unknown mode: ${String(mode)}`);
+	throwUnexpectedValue(mode, 'cost calculation mode');
 }
 
 export type DateFilter = {
