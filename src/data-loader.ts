@@ -2,7 +2,6 @@ import type { CostMode, SortOrder } from './types.internal.ts';
 import { readFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import path from 'node:path';
-import { unreachable } from '@core/errorutil';
 import { sort } from 'fast-sort';
 import { glob } from 'tinyglobby';
 import * as v from 'valibot';
@@ -11,6 +10,13 @@ import {
 	PricingFetcher,
 } from './pricing-fetcher.ts';
 import { groupBy } from './utils.internal.ts';
+
+/**
+ * Helper function for handling unexpected values in exhaustive switches
+ */
+function throwUnexpectedValue(value: never, context: string): never {
+	throw new Error(`Unexpected ${context} value: ${String(value)}`);
+}
 
 export function getDefaultClaudePath(): string {
 	return path.join(homedir(), '.claude');
@@ -42,6 +48,7 @@ export const ModelBreakdownSchema = v.object({
 	cacheCreationTokens: v.number(),
 	cacheReadTokens: v.number(),
 	cost: v.number(),
+	requestCount: v.number(),
 });
 
 export type ModelBreakdown = v.InferOutput<typeof ModelBreakdownSchema>;
@@ -56,6 +63,7 @@ export const DailyUsageSchema = v.object({
 	cacheCreationTokens: v.number(),
 	cacheReadTokens: v.number(),
 	totalCost: v.number(),
+	requestCount: v.number(),
 	modelsUsed: v.array(v.string()),
 	modelBreakdowns: v.array(ModelBreakdownSchema),
 });
@@ -70,6 +78,7 @@ export const SessionUsageSchema = v.object({
 	cacheCreationTokens: v.number(),
 	cacheReadTokens: v.number(),
 	totalCost: v.number(),
+	requestCount: v.number(),
 	lastActivity: v.string(),
 	versions: v.array(v.string()), // List of unique versions used in this session
 	modelsUsed: v.array(v.string()),
@@ -88,6 +97,7 @@ export const MonthlyUsageSchema = v.object({
 	cacheCreationTokens: v.number(),
 	cacheReadTokens: v.number(),
 	totalCost: v.number(),
+	requestCount: v.number(),
 	modelsUsed: v.array(v.string()),
 	modelBreakdowns: v.array(ModelBreakdownSchema),
 });
@@ -121,7 +131,7 @@ function sortByDate<T>(
 		case 'asc':
 			return sorted.asc(item => new Date(getDate(item)).getTime());
 		default:
-			unreachable(order);
+			throwUnexpectedValue(order, 'sort order');
 	}
 }
 
@@ -244,7 +254,7 @@ export async function calculateCostForEntry(
 		return 0;
 	}
 
-	unreachable(mode);
+	throwUnexpectedValue(mode, 'cost calculation mode');
 }
 
 export type DateFilter = {
@@ -347,6 +357,7 @@ export async function loadDailyUsageData(
 				cacheCreationTokens: number;
 				cacheReadTokens: number;
 				cost: number;
+				requestCount: number;
 			}>();
 
 			for (const entry of entries) {
@@ -361,6 +372,7 @@ export async function loadDailyUsageData(
 					cacheCreationTokens: 0,
 					cacheReadTokens: 0,
 					cost: 0,
+					requestCount: 0,
 				};
 
 				modelAggregates.set(modelName, {
@@ -369,6 +381,7 @@ export async function loadDailyUsageData(
 					cacheCreationTokens: existing.cacheCreationTokens + (entry.data.message.usage.cache_creation_input_tokens ?? 0),
 					cacheReadTokens: existing.cacheReadTokens + (entry.data.message.usage.cache_read_input_tokens ?? 0),
 					cost: existing.cost + entry.cost,
+					requestCount: existing.requestCount + 1,
 				});
 			}
 
@@ -394,6 +407,7 @@ export async function loadDailyUsageData(
 						acc.cacheReadTokens
 						+ (entry.data.message.usage.cache_read_input_tokens ?? 0),
 					totalCost: acc.totalCost + entry.cost,
+					requestCount: acc.requestCount + 1,
 				}),
 				{
 					inputTokens: 0,
@@ -401,6 +415,7 @@ export async function loadDailyUsageData(
 					cacheCreationTokens: 0,
 					cacheReadTokens: 0,
 					totalCost: 0,
+					requestCount: 0,
 				},
 			);
 
@@ -561,6 +576,7 @@ export async function loadSessionData(
 				cacheCreationTokens: number;
 				cacheReadTokens: number;
 				cost: number;
+				requestCount: number;
 			}>();
 
 			for (const entry of entries) {
@@ -575,6 +591,7 @@ export async function loadSessionData(
 					cacheCreationTokens: 0,
 					cacheReadTokens: 0,
 					cost: 0,
+					requestCount: 0,
 				};
 
 				modelAggregates.set(modelName, {
@@ -583,6 +600,7 @@ export async function loadSessionData(
 					cacheCreationTokens: existing.cacheCreationTokens + (entry.data.message.usage.cache_creation_input_tokens ?? 0),
 					cacheReadTokens: existing.cacheReadTokens + (entry.data.message.usage.cache_read_input_tokens ?? 0),
 					cost: existing.cost + entry.cost,
+					requestCount: existing.requestCount + 1,
 				});
 			}
 
@@ -608,6 +626,7 @@ export async function loadSessionData(
 						acc.cacheReadTokens
 						+ (entry.data.message.usage.cache_read_input_tokens ?? 0),
 					totalCost: acc.totalCost + entry.cost,
+					requestCount: acc.requestCount + 1,
 				}),
 				{
 					inputTokens: 0,
@@ -615,6 +634,7 @@ export async function loadSessionData(
 					cacheCreationTokens: 0,
 					cacheReadTokens: 0,
 					totalCost: 0,
+					requestCount: 0,
 				},
 			);
 
@@ -671,6 +691,7 @@ export async function loadMonthlyUsageData(
 			cacheCreationTokens: number;
 			cacheReadTokens: number;
 			cost: number;
+			requestCount: number;
 		}>();
 
 		for (const daily of dailyEntries) {
@@ -685,6 +706,7 @@ export async function loadMonthlyUsageData(
 					cacheCreationTokens: 0,
 					cacheReadTokens: 0,
 					cost: 0,
+					requestCount: 0,
 				};
 
 				modelAggregates.set(breakdown.modelName, {
@@ -693,6 +715,7 @@ export async function loadMonthlyUsageData(
 					cacheCreationTokens: existing.cacheCreationTokens + breakdown.cacheCreationTokens,
 					cacheReadTokens: existing.cacheReadTokens + breakdown.cacheReadTokens,
 					cost: existing.cost + breakdown.cost,
+					requestCount: existing.requestCount + breakdown.requestCount,
 				});
 			}
 		}
@@ -722,6 +745,7 @@ export async function loadMonthlyUsageData(
 		let totalCacheCreationTokens = 0;
 		let totalCacheReadTokens = 0;
 		let totalCost = 0;
+		let totalRequestCount = 0;
 
 		for (const daily of dailyEntries) {
 			totalInputTokens += daily.inputTokens;
@@ -729,6 +753,7 @@ export async function loadMonthlyUsageData(
 			totalCacheCreationTokens += daily.cacheCreationTokens;
 			totalCacheReadTokens += daily.cacheReadTokens;
 			totalCost += daily.totalCost;
+			totalRequestCount += daily.requestCount;
 		}
 		const monthlyUsage: MonthlyUsage = {
 			month,
@@ -737,6 +762,7 @@ export async function loadMonthlyUsageData(
 			cacheCreationTokens: totalCacheCreationTokens,
 			cacheReadTokens: totalCacheReadTokens,
 			totalCost,
+			requestCount: totalRequestCount,
 			modelsUsed: Array.from(modelsSet),
 			modelBreakdowns,
 		};

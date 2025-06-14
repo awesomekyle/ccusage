@@ -62,6 +62,7 @@ export function pushBreakdownRows(
 		cacheCreationTokens: number;
 		cacheReadTokens: number;
 		cost: number;
+		requestCount: number;
 	}>,
 	extraColumns = 1,
 	trailingColumns = 0,
@@ -79,6 +80,7 @@ export function pushBreakdownRows(
 			+ breakdown.cacheCreationTokens + breakdown.cacheReadTokens;
 
 		row.push(
+			pc.gray(formatNumber(breakdown.requestCount)),
 			pc.gray(formatNumber(breakdown.inputTokens)),
 			pc.gray(formatNumber(breakdown.outputTokens)),
 			pc.gray(formatNumber(breakdown.cacheCreationTokens)),

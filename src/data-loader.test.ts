@@ -79,6 +79,53 @@ describe('loadDailyUsageData', () => {
 		expect(result[0]?.inputTokens).toBe(600); // 100 + 200 + 300
 		expect(result[0]?.outputTokens).toBe(300); // 50 + 100 + 150
 		expect(result[0]?.totalCost).toBe(0.06); // 0.01 + 0.02 + 0.03
+		expect(result[0]?.requestCount).toBe(3); // 3 total requests
+	});
+
+	test('correctly counts requests per day', async () => {
+		const mockData: UsageData[] = [
+			{
+				timestamp: '2024-01-01T00:00:00Z',
+				message: { usage: { input_tokens: 100, output_tokens: 50 } },
+				costUSD: 0.01,
+			},
+			{
+				timestamp: '2024-01-01T12:00:00Z',
+				message: { usage: { input_tokens: 200, output_tokens: 100 } },
+				costUSD: 0.02,
+			},
+			{
+				timestamp: '2024-01-02T00:00:00Z',
+				message: { usage: { input_tokens: 150, output_tokens: 75 } },
+				costUSD: 0.015,
+			},
+		];
+
+		await using fixture = await createFixture({
+			projects: {
+				project1: {
+					session1: {
+						'file1.jsonl': mockData.map(d => JSON.stringify(d)).join('\n'),
+					},
+				},
+			},
+		});
+
+		const result = await loadDailyUsageData({ claudePath: fixture.path });
+
+		expect(result).toHaveLength(2);
+
+		// Check first day (2024-01-01)
+		const day1 = result.find(r => r.date === '2024-01-01');
+		expect(day1?.requestCount).toBe(2); // 2 requests on day 1
+		expect(day1?.inputTokens).toBe(300); // 100 + 200
+		expect(day1?.outputTokens).toBe(150); // 50 + 100
+
+		// Check second day (2024-01-02)
+		const day2 = result.find(r => r.date === '2024-01-02');
+		expect(day2?.requestCount).toBe(1); // 1 request on day 2
+		expect(day2?.inputTokens).toBe(150);
+		expect(day2?.outputTokens).toBe(75);
 	});
 
 	test('handles cache tokens', async () => {
@@ -109,6 +156,7 @@ describe('loadDailyUsageData', () => {
 
 		expect(result[0]?.cacheCreationTokens).toBe(25);
 		expect(result[0]?.cacheReadTokens).toBe(10);
+		expect(result[0]?.requestCount).toBe(1);
 	});
 
 	test('filters by date range', async () => {
@@ -364,6 +412,7 @@ describe('loadMonthlyUsageData', () => {
 			cacheCreationTokens: 0,
 			cacheReadTokens: 0,
 			totalCost: 0.015,
+			requestCount: 1,
 			modelsUsed: [],
 			modelBreakdowns: [{
 				modelName: 'unknown',
@@ -372,6 +421,7 @@ describe('loadMonthlyUsageData', () => {
 				cacheCreationTokens: 0,
 				cacheReadTokens: 0,
 				cost: 0.015,
+				requestCount: 1,
 			}],
 		});
 		expect(result[1]).toEqual({
@@ -381,6 +431,7 @@ describe('loadMonthlyUsageData', () => {
 			cacheCreationTokens: 0,
 			cacheReadTokens: 0,
 			totalCost: 0.03,
+			requestCount: 2,
 			modelsUsed: [],
 			modelBreakdowns: [{
 				modelName: 'unknown',
@@ -389,6 +440,7 @@ describe('loadMonthlyUsageData', () => {
 				cacheCreationTokens: 0,
 				cacheReadTokens: 0,
 				cost: 0.03,
+				requestCount: 2,
 			}],
 		});
 	});
@@ -436,6 +488,7 @@ describe('loadMonthlyUsageData', () => {
 			cacheCreationTokens: 0,
 			cacheReadTokens: 0,
 			totalCost: 0.03,
+			requestCount: 2,
 			modelsUsed: [],
 			modelBreakdowns: [{
 				modelName: 'unknown',
@@ -444,6 +497,7 @@ describe('loadMonthlyUsageData', () => {
 				cacheCreationTokens: 0,
 				cacheReadTokens: 0,
 				cost: 0.03,
+				requestCount: 2,
 			}],
 		});
 	});
